@@ -1,36 +1,39 @@
 import torch
 import torch.nn as nn
-
-class Encoder(nn.Module):#그냥 트랜스포머. 인코더엔 토큰시퀀스, 디코더는 압축된 벡터 반환.
+m_dim=300
+dictsize=500
+num_head=4
+dim_ff=512
+dropout=0.1
+layernum=4
+class Encoder(nn.Module):
     def __init__(self, lang):
         super(Encoder, self).__init__()
-        self.emb=nn.Embedding()
-        self.l0=nn.Linear()
-        self.l1=nn.Linear()
-        self.l2=nn.Linear()
-    def __forward__(self, word):
-        emb=self.emb(idx)
-        emb=self.l0(emb)
-        emb=self.l1(emb)
-        emb=self.l2(emb)
-        return emb
+        self.emb=nn.Embedding(dictsize, m_dim)
+        self.enc_layer=nn.TransformerEncoderLayer(d_model=m_dim, nhead=num_head, dim_feedforward=dim_ff, dropout=dropout)
+        self.enc=nn.TransformerEncoder(self.enc_layer, layernum)
+        self.dec_layer=nn.TransformerDecoderLayer(d_model=m_dim, nhead=num_head, dim_feedforward=dim_ff, dropout=dropout)
+        self.dec=nn.TransformerDecoder(self.dec_layer, layernum)
 
 class Decoder(nn.Module):
     def __init__(self, lang):
-        self.l0=nn.Linear()
-        self.l1=nn.Linear()
-        self.l2=nn.Linear()
-        self.er=nn.Linear()
-    def __forward__(self, emb):
-        emb=self.l0(emb)
-        emb=self.l1(emb)
-        emb=self.l2(emb)
-        idx=self.argmax(self.softmax(self.er(emb)))
-        return idx
+        self.cls=nn.Linear(m_dim, dictsize)
+        self.enc_layer=nn.TransformerEncoderLayer(d_model=m_dim, nhead=num_head, dim_feedforward=dim_ff, dropout=dropout)
+        self.enc=nn.TransformerEncoder(self.enc_layer, layernum)
+        self.dec_layer=nn.TransformerDecoderLayer(d_model=m_dim, nhead=num_head, dim_feedforward=dim_ff, dropout=dropout)
+        self.dec=nn.TransformerDecoder(self.dec_layer, layernum)
     
-def comp(model, tokseq, maxseq):
+
+class Embedding(nn.Module):
+    def __init__(self):
+        super(Embedding, self).__init__()
+        self.emb=nn.Embedding(dictsize, m_dim)
+        self.cls=nn.Linear(m_dim, dictsize)
+
+def comp(model, emb, tokseq, maxseq):
     enc=model
     seq=[]
+    tokseq=emb.emb(tokseq)
     encout=enc.enc(tokseq)
     for _ in range(maxseq):
         seq.append(enc.dec(seq, encout)[0])
@@ -38,7 +41,24 @@ def comp(model, tokseq, maxseq):
     #eos 이후의 값을 0으로 수정하여야 할 것.
     return seq
 
-def train_multi_enc():
+def reconstruct(model,embmod, embed):
+    dec=model
+    seq=[]
+    encout=dec.enc(embed)
+
+    eos=3
+
+    while True:
+        decout=dec.dec(seq, encout)[0]
+        decout=embmod.cls(decout)
+        seq.append(decout)
+        if decout==eos:
+            break
+    seq=torch.stack(seq)
+    return seq
+
+
+def train_multi_enc(krtokenseq, entokenseq, jptokenseq):
     enc_kr=Encoder()
     enc_en=Encoder()
     enc_jp=Encoder()
@@ -62,4 +82,4 @@ def train_reconstruction(lang):
     emb=enc(tokenseq)
     outseq=dec(emb)
 
-def train_dec2enc():
+def train_backtranslate():
