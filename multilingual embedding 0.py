@@ -6,6 +6,12 @@ num_head=4
 dim_ff=512
 dropout=0.1
 layernum=4
+sos=labeling(dictsize, 1)
+eos=labeling(dictsize, 2)
+pad=labeling(dictsize, 0)
+unk=labeling(dictsize, 3)
+
+
 class Encoder(nn.Module):
     def __init__(self, lang):
         super(Encoder, self).__init__()
@@ -32,7 +38,7 @@ class Embedding(nn.Module):
 
 def comp(model, emb, tokseq, maxseq):
     enc=model
-    seq=[]
+    seq=[sos]
     tokseq=emb.emb(tokseq)
     encout=enc.enc(tokseq)
     for _ in range(maxseq):
@@ -45,8 +51,6 @@ def reconstruct(model,embmod, embed):
     dec=model
     seq=[]
     encout=dec.enc(embed)
-
-    eos=3
 
     while True:
         decout=dec.dec(seq, encout)[0]
@@ -75,11 +79,11 @@ def train_multi_enc(krtokenseq, entokenseq, jptokenseq):
     loss.backward()
     optim.step()
 
-def train_reconstruction(lang):
+def train_reconstruction(lang, tokenseq):
     enc=Encoder(lang=lang)
     dec=Decoder(lang=lang)
     
     emb=enc(tokenseq)
-    outseq=dec(emb)
+    outseq=dec(tgt, emb)
 
 def train_backtranslate():
